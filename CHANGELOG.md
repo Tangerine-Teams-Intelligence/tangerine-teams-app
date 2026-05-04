@@ -8,6 +8,69 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
      Each version block focuses on user-visible features so this doc can
      also feed the in-app /whats-new-app route. -->
 
+## [1.24.0] — 2026-05-04 — Obsidian-style force-directed graph view
+
+CEO direction after rejecting 7 visual designs: *"用一个类似 obsidian 的图像，而不是简单的文本框"*. Stop trying to render the timeline as cards / pages / planes. Render it as a constellation of nodes + edges, force-directed, the visual everyone associates with Obsidian.
+
+The T view (`canvasView === "time"`) now mounts `<GraphView/>` instead of `<DailyMemoryPages/>` (v1.23 Depth Canvas). DailyMemoryPages.tsx + TimeDensityList stay on disk but are no longer mounted from `/feed`.
+
+### Library
+
+- `react-force-graph-2d` (~150 KB gzipped). d3-force + Canvas wrapper with built-in pan / zoom / hover / click. Canvas (not WebGL / not SVG) handles 1000+ nodes at 60fps. No three.js.
+
+### Edge inference rules (pure helper, exported for tests)
+
+For every pair of atoms (A, B):
+
+- **Mention edge** (weight 2) — A's body @-mentions B's actor or vice versa.
+- **Concept edge** (weight 1, capped at 2) — `A.concepts ∩ B.concepts` non-empty; weight = overlap count.
+- **Thread edge** (weight 1) — A and B share `refs.conversation_id` / `refs.thread` / `refs.threads[0]`.
+- **Actor edge** (weight 0.5) — same actor + atoms within 24h of each other.
+
+Plus structural atom→thread + atom→person edges so multi-atom threads / actors anchor a cluster. Edges below weight 0.5 dropped; if total edges > nodes × 5 the lowest-weight ones are pruned (avoids the hairball look).
+
+### Visual
+
+- Background: stone-50 (light) / stone-950 (dark) — full viewport edge-to-edge canvas.
+- **Atom nodes** — solid disc, `vendorFor(source).color`, size 6-24 by HighlightsRow score.
+- **Thread nodes** — hollow ring, stone-400 stroke, size by atom-count (≥2 atoms).
+- **Person nodes** — bigger ring, stone-500 stroke, size by atom-count (≥2 atoms).
+- **Edges** — 1px stone-300/40, width = weight (0.5-2).
+- **Hover** — hovered node 1.5x with label backdrop; direct neighbors full opacity; non-neighbors 0.18 opacity. Edges to/from hovered node turn `var(--ti-orange-500)`.
+- **Click atom** → `onOpenAtom(node.event)` → AtomBottomSheet (existing contract).
+- **Click thread / person** → focus filter (graph collapses to that node + its neighbors). "clear focus ×" button restores full graph; clicking empty canvas while focused also clears.
+- **Today's atom node** gets a 1.2px orange ring (single accent rule preserved).
+- Labels invisible until zoom > 2.5x or hover (avoids permanent-label clutter).
+
+### Force-simulation knobs (Obsidian feel)
+
+- `linkDistance: 70` (tighter than default for clusters)
+- `chargeStrength: -200` (mild repulsion, not explosive)
+- `cooldownTicks: 200` / `warmupTicks: 50` (settle quickly then freeze)
+- `d3AlphaDecay: 0.03`, `d3VelocityDecay: 0.3`
+
+### Initial render
+
+- After 500ms `graphRef.zoomToFit(400, 50)` auto-fits the viewport.
+- Highest-scored atom is pinned at origin (`fx = fy = 0`) so the user's eye lands there.
+
+### Constraints honored
+
+- **R6 honesty preserved** — empty events still routed to caller's EmptyState (diagnostic 3-row card with Open Settings button) before mounting the graph. Loading + error states distinct.
+- **Single accent** — orange shows only on hovered edges + today's atom ring + Save button. Nowhere else.
+- **No three.js** — Canvas not WebGL.
+- **All v1.21.1 exit-paths preserved** — back-to-time button on H/P/R, CatchupBanner show-less, TopNav 4 buttons, Spotlight Cmd+K.
+- **CatchupBanner** still pinned above the graph; **CaptureInput** still sticky bottom.
+- **bucketByDay timezone fix** from v1.22 still on disk (DailyMemoryPages preserved).
+
+### Footer hint
+
+`T time` → `T graph`. Internal CanvasView key still `"time"` (state continuity, no migration).
+
+### Tests
+
+`tests/v1_24-graph-view.test.tsx` — covers (1) graph data construction with correct node count, (2) mention edges between atoms with @-mentions, (3) click atom node → onOpenAtom with the right event, (4) hover state highlights neighbors via data attribute, (5) empty events array → EmptyState (caller-side), not empty graph. `react-force-graph-2d` is mocked (jsdom Canvas limitation) — the mock surfaces graph data + click handlers as `data-testid` props so the data flow is verified without touching Canvas.
+
 ## [1.23.0] — 2026-05-01 — Depth Canvas (planar 3D)
 
 CEO rejected v1.22's Daily Memory Pages: *"完全不行，整个 visual 根本不行，非常不行"*. After 6 redesigns the direction surfaced: *"要有一种平面 3D 的感觉"* — planar 3D / 2.5D. 2D layout that USES 3D techniques (depth shadow, layered planes, hover lift, perspective tilt) but stays a plane. Apple Vision Pro UI / Stripe homepage / Linear app aesthetic.

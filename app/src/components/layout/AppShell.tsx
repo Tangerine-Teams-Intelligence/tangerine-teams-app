@@ -577,7 +577,10 @@ interface FooterHintLabel {
 }
 
 const FOOTER_HINT_LABELS: FooterHintLabel[] = [
-  { key: "time", text: "T time" },
+  // v1.24.0 — T view label flipped from "time" to "graph". The internal
+  // CanvasView key stays "time" (state/shortcut continuity) but the
+  // user-visible mode is the Obsidian-style force-directed graph.
+  { key: "time", text: "T graph" },
   { key: "heatmap", text: "H heat" },
   { key: "people", text: "P people" },
   { key: "replay", text: "R replay" },

@@ -65,6 +65,11 @@ export default defineConfig(async () => ({
           ],
           "markdown-vendor": ["react-markdown"],
           "flow-vendor": ["reactflow"],
+          // v1.24.0 — Obsidian-style graph view (force-directed nodes/edges)
+          // pulls in d3-force + force-graph + canvas wrappers, ~400 KB raw.
+          // Splitting it keeps the main entry chunk warmer-cacheable across
+          // app churn.
+          "graph-vendor": ["react-force-graph-2d"],
         },
       },
     },

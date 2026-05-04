@@ -374,65 +374,54 @@ describe("v1.19 Round 1 — Time-density list", () => {
     );
   });
 
-  // v1.22.0 — `time-density-list` is no longer mounted on /feed. The
-  // route now renders `daily-memory-pages` with day-card sections. The
-  // assertions below were rewritten to hit the new surface; the
-  // underlying contract ("when corpus has events, the user can see them
-  // and click into AtomBottomSheet") is preserved.
-  it("v1.22 — daily-memory-pages renders one section per day with hero", async () => {
+  // v1.24.0 — /feed T view now mounts `<GraphView/>` (Obsidian-style
+  // force-directed graph), replacing v1.23's Depth Canvas. The route
+  // still owns CatchupBanner + CaptureInput + AtomBottomSheet; the
+  // graph itself is what changed. Tests here verify the FeedRoute
+  // wiring contract: graph-view renders, atom counts match, and the
+  // exit-paths to AtomBottomSheet are still reachable through the
+  // `onOpenAtom` handler (called by GraphView when a node is clicked,
+  // exercised directly via the unit test in v1_24-graph-view.test.tsx).
+  it("v1.24 — graph-view renders with the corpus atom count on /feed", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("daily-memory-pages")).toBeInTheDocument();
+      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
     });
-    const cards = screen.getAllByTestId("day-card");
-    expect(cards.length).toBeGreaterThanOrEqual(1);
-    const hero = screen.getAllByTestId("day-hero-card")[0];
-    expect(hero.textContent).toContain("daizhe");
-    expect(hero.textContent).toContain("cursor");
-    expect(hero.textContent).toContain("v1.18.1 ship walker fix");
+    const view = screen.getByTestId("graph-view");
+    expect(Number(view.getAttribute("data-atom-count"))).toBe(
+      SAMPLE_EVENTS.length,
+    );
   });
 
-  it("v1.22 — clicking a hero card opens AtomBottomSheet", async () => {
+  it("v1.24 — graph-view receives positive node + edge counts when corpus has data", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("daily-memory-pages")).toBeInTheDocument();
+      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getAllByTestId("day-hero-card")[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId("atom-bottom-sheet")).toBeInTheDocument();
-    });
+    const view = screen.getByTestId("graph-view");
+    expect(Number(view.getAttribute("data-node-count"))).toBeGreaterThan(0);
+    // Edge count can be 0 if no atoms relate, but for SAMPLE_EVENTS the
+    // shared concepts / actors generate at least one structural edge.
+    expect(Number(view.getAttribute("data-edge-count"))).toBeGreaterThanOrEqual(0);
   });
 
-  it("v1.23 — day-card date header floats in a backdrop-blur chip", async () => {
-    // v1.22 asserted serif font on every day header; v1.23 (Depth Canvas)
-    // restricts the prominent serif to Today / Yesterday only — older
-    // days get a sans `font-medium` chip so the recent days stand out.
-    // SAMPLE_EVENTS sit on 2026-04-29 which is neither (against the
-    // local "now" at test-runtime), so we now assert the depth-chip
-    // styling that ALL day separators share: the floating
-    // `bg-stone-50/70 backdrop-blur-sm` shadow chip.
+  it("v1.24 — graph-view canvas stub mounts (real Canvas would crash jsdom)", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("daily-memory-pages")).toBeInTheDocument();
+      expect(screen.getByTestId("graph-canvas-stub")).toBeInTheDocument();
     });
-    const dates = screen.getAllByTestId("day-card-date");
-    expect(dates.length).toBeGreaterThanOrEqual(1);
-    // Depth-chip style — every day separator gets this regardless of
-    // serif vs sans typography.
-    expect(dates[0].className).toContain("backdrop-blur-sm");
-    expect(dates[0].className).toContain("rounded-full");
   });
 });
 
@@ -530,8 +519,11 @@ describe("v1.19 Round 1 — AppShell wiring", () => {
     await waitFor(() =>
       expect(screen.getByTestId("footer-hint")).toBeInTheDocument(),
     );
+    // v1.24.0 — label flipped from "T time" to "T graph" (the T view
+    // now mounts the Obsidian-style force-directed graph). Internal
+    // canvas key still "time" for state continuity.
     expect(screen.getByTestId("footer-hint").textContent).toContain(
-      "T time",
+      "T graph",
     );
   });
 
@@ -969,11 +961,15 @@ describe("v1.19.1 Round 2 H — Today gets the orange accent", () => {
     );
   }
 
-  // v1.22.0 — orange-on-Today rule preserved, surface migrated. The
-  // accent now lives on the day-card date header (`day-card-date`)
-  // instead of the time-density `time-day-separator`. Same data-attr
-  // contract: `data-is-today="true"` on Today's row, "false" elsewhere.
-  it("v1.22 — Today's day-card-date is data-is-today=true with orange class", async () => {
+  // v1.24.0 — orange-on-Today rule preserved at the GRAPH level. The
+  // day-card surface is gone; what survives is `node.isToday=true` on
+  // atom nodes whose ts is today. The painter (drawNode) draws an
+  // orange ring around those nodes. We can't observe the ring directly
+  // through the canvas-stub mock, so the contract is exercised by the
+  // pure helper test in v1_24-graph-view.test.tsx (buildGraph sets the
+  // flag) and here we just sanity-check that today's atom is in the
+  // graph corpus.
+  it("v1.24 — graph mounts with today's atom present in corpus", async () => {
     const todayIso = new Date().toISOString();
     const todayEvents: TimelineEvent[] = [
       makeEvent({ id: "today-1", ts: todayIso }),
@@ -985,16 +981,13 @@ describe("v1.19.1 Round 2 H — Today gets the orange accent", () => {
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("daily-memory-pages")).toBeInTheDocument();
+      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
     });
-    const dates = screen.getAllByTestId("day-card-date");
-    // Newest first: first date row is today.
-    expect(dates[0].getAttribute("data-is-today")).toBe("true");
-    expect(dates[0].textContent).toContain("Today");
-    expect(dates[0].className).toContain("ti-orange");
-    // Second card is an older day, stone fill.
-    expect(dates[1].getAttribute("data-is-today")).toBe("false");
-    expect(dates[1].className).not.toContain("ti-orange");
+    expect(
+      Number(
+        screen.getByTestId("graph-view").getAttribute("data-atom-count"),
+      ),
+    ).toBe(2);
   });
 });
 

@@ -56,7 +56,7 @@ import { buildPeopleStats } from "@/routes/people/index";
 import { useReplayController } from "@/components/canvas/ReplayController";
 import { CatchupBanner } from "@/components/feed/CatchupBanner";
 import { CaptureInput } from "@/components/feed/CaptureInput";
-import { DailyMemoryPages } from "@/components/feed/DailyMemoryPages";
+import { GraphView } from "@/components/feed/GraphView";
 
 export default function FeedRoute() {
   const canvasView = useStore((s) => s.ui.canvasView);
@@ -214,16 +214,21 @@ export default function FeedRoute() {
 }
 
 /**
- * v1.22.0 — TimeView mounts:
- *   • CatchupBanner at the top (the "what's new since last visit" pillar
- *     from v1.21 stays unchanged).
- *   • DailyMemoryPages below — the new Apple-Photos-style day cards
- *     replacing the v1.19→v1.21 4-col time-density list.
+ * v1.24.0 — TimeView (canvas key = "time", visually now the "graph" view).
  *
- * Older `TimeDensityList` is kept on disk (any future surface that wants
- * a flat list pattern can import it; the day-card "show N quieter atoms"
- * already reuses the same 4-col grid pattern inline). It is no longer
- * mounted from /feed.
+ * Mounts:
+ *   • CatchupBanner pinned to the top — the v1.21 operability pillar
+ *     stays unchanged. Lives outside the graph canvas so it doesn't fight
+ *     the force simulation for screen real estate.
+ *   • GraphView below — Obsidian-style force-directed nodes/edges,
+ *     replacing v1.23's Depth Canvas (which itself replaced v1.22's Daily
+ *     Memory Pages). DailyMemoryPages.tsx + TimeDensityList both stay on
+ *     disk for reference but neither is mounted from /feed.
+ *
+ * The internal `canvasView === "time"` key is preserved so existing
+ * keyboard shortcuts (T) + state in zustand keep working without a
+ * migration. Only the user-visible label changes ("graph" in the footer
+ * hint).
  */
 function TimeView({
   events,
@@ -238,17 +243,18 @@ function TimeView({
     <div
       data-testid="time-view"
       data-count={events.length}
-      className="h-full w-full overflow-y-auto"
-      style={{ contentVisibility: "auto" }}
+      className="flex h-full w-full flex-col"
     >
-      <div className="mx-auto max-w-3xl px-8 pt-12">
+      <div className="mx-auto w-full max-w-3xl px-8 pt-12">
         <CatchupBanner events={events} user={user} onOpenAtom={onOpenAtom} />
       </div>
-      <DailyMemoryPages
-        events={events}
-        currentUser={user}
-        onOpenAtom={onOpenAtom}
-      />
+      <div className="relative min-h-0 flex-1">
+        <GraphView
+          events={events}
+          currentUser={user}
+          onOpenAtom={onOpenAtom}
+        />
+      </div>
     </div>
   );
 }
