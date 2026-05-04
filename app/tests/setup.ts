@@ -21,6 +21,41 @@ vi.mock("react-force-graph-2d", () => {
   return { default: Stub };
 });
 
+// v1.25.0 — `react-zoom-pan-pinch` reads window dimensions + uses
+// requestAnimationFrame internals during `TransformWrapper` mount. The
+// library works in jsdom but logs noise; route smoke tests don't need
+// to exercise zoom/pan, so we surface a passthrough that just renders
+// children. The targeted v1.25 test file uses the real library through
+// the same stub for click/data-surfacing assertions.
+vi.mock("react-zoom-pan-pinch", () => {
+  const TransformWrapper = ({
+    children,
+  }: {
+    children:
+      | React.ReactNode
+      | ((props: Record<string, unknown>) => React.ReactNode);
+  }) => {
+    const rendered =
+      typeof children === "function" ? children({}) : children;
+    return React.createElement(
+      "div",
+      { "data-testid": "zoom-pan-wrapper" },
+      rendered,
+    );
+  };
+  const TransformComponent = ({
+    children,
+  }: {
+    children?: React.ReactNode;
+  }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "zoom-pan-content" },
+      children,
+    );
+  return { TransformWrapper, TransformComponent };
+});
+
 // v2.0-alpha.2 — reactflow on the home dashboard pulls in DOM measurement
 // APIs that jsdom doesn't implement. Stub them globally so any test that
 // renders a component containing <WorkflowGraph /> (notably the /today

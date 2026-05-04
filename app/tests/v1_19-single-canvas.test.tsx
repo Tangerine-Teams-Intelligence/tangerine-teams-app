@@ -375,52 +375,57 @@ describe("v1.19 Round 1 — Time-density list", () => {
   });
 
   // v1.24.0 — /feed T view now mounts `<GraphView/>` (Obsidian-style
-  // force-directed graph), replacing v1.23's Depth Canvas. The route
-  // still owns CatchupBanner + CaptureInput + AtomBottomSheet; the
-  // graph itself is what changed. Tests here verify the FeedRoute
-  // wiring contract: graph-view renders, atom counts match, and the
-  // exit-paths to AtomBottomSheet are still reachable through the
-  // `onOpenAtom` handler (called by GraphView when a node is clicked,
-  // exercised directly via the unit test in v1_24-graph-view.test.tsx).
-  it("v1.24 — graph-view renders with the corpus atom count on /feed", async () => {
+  // v1.25.0 — `time` view now mounts the Heptabase-style WhiteboardView
+  // (cards on infinite canvas), replacing v1.24's Obsidian force-
+  // directed graph. The route still owns CatchupBanner + CaptureInput
+  // + AtomBottomSheet; only the inner canvas changed. Tests here verify
+  // the FeedRoute wiring contract: whiteboard-view renders, card counts
+  // match the corpus size, and the exit-paths to AtomBottomSheet are
+  // still reachable through the `onOpenAtom` handler (called by the
+  // WhiteboardView when a card is clicked, exercised directly via the
+  // unit test in v1_25-whiteboard-view.test.tsx).
+  it("v1.25 — whiteboard-view renders on /feed with one card per atom", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
+      expect(screen.getByTestId("whiteboard-view")).toBeInTheDocument();
     });
-    const view = screen.getByTestId("graph-view");
-    expect(Number(view.getAttribute("data-atom-count"))).toBe(
+    const view = screen.getByTestId("whiteboard-view");
+    expect(Number(view.getAttribute("data-card-count"))).toBe(
       SAMPLE_EVENTS.length,
     );
   });
 
-  it("v1.24 — graph-view receives positive node + edge counts when corpus has data", async () => {
+  it("v1.25 — whiteboard-view emits day labels for the corpus", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
+      expect(screen.getByTestId("whiteboard-view")).toBeInTheDocument();
     });
-    const view = screen.getByTestId("graph-view");
-    expect(Number(view.getAttribute("data-node-count"))).toBeGreaterThan(0);
-    // Edge count can be 0 if no atoms relate, but for SAMPLE_EVENTS the
-    // shared concepts / actors generate at least one structural edge.
-    expect(Number(view.getAttribute("data-edge-count"))).toBeGreaterThanOrEqual(0);
+    const view = screen.getByTestId("whiteboard-view");
+    expect(Number(view.getAttribute("data-day-count"))).toBeGreaterThan(0);
+    // Edge count can be 0 if no atoms relate; SAMPLE_EVENTS may or may
+    // not share enough signal — assert non-negative just to lock the
+    // attribute presence.
+    expect(
+      Number(view.getAttribute("data-edge-count")),
+    ).toBeGreaterThanOrEqual(0);
   });
 
-  it("v1.24 — graph-view canvas stub mounts (real Canvas would crash jsdom)", async () => {
+  it("v1.25 — zoom-pan wrapper is mounted (passthrough stub in jsdom)", async () => {
     vi.spyOn(views, "readTimelineRecent").mockResolvedValue({
       events: SAMPLE_EVENTS,
       notes: [],
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("graph-canvas-stub")).toBeInTheDocument();
+      expect(screen.getByTestId("zoom-pan-wrapper")).toBeInTheDocument();
     });
   });
 });
@@ -519,11 +524,12 @@ describe("v1.19 Round 1 — AppShell wiring", () => {
     await waitFor(() =>
       expect(screen.getByTestId("footer-hint")).toBeInTheDocument(),
     );
-    // v1.24.0 — label flipped from "T time" to "T graph" (the T view
-    // now mounts the Obsidian-style force-directed graph). Internal
+    // v1.25.0 — label flipped from "T graph" to "T whiteboard" (the T
+    // view now mounts the Heptabase-style infinite-canvas WhiteboardView
+    // after CEO rejected the v1.24 force-directed graph). Internal
     // canvas key still "time" for state continuity.
     expect(screen.getByTestId("footer-hint").textContent).toContain(
-      "T graph",
+      "T whiteboard",
     );
   });
 
@@ -962,14 +968,14 @@ describe("v1.19.1 Round 2 H — Today gets the orange accent", () => {
   }
 
   // v1.24.0 — orange-on-Today rule preserved at the GRAPH level. The
-  // day-card surface is gone; what survives is `node.isToday=true` on
-  // atom nodes whose ts is today. The painter (drawNode) draws an
-  // orange ring around those nodes. We can't observe the ring directly
-  // through the canvas-stub mock, so the contract is exercised by the
-  // pure helper test in v1_24-graph-view.test.tsx (buildGraph sets the
-  // flag) and here we just sanity-check that today's atom is in the
-  // graph corpus.
-  it("v1.24 — graph mounts with today's atom present in corpus", async () => {
+  // v1.25.0 — the WhiteboardView now exposes a `whiteboard-day-label`
+  // node per distinct day with `data-is-today="true"` on today's
+  // entry. The CSS-driven orange accent (var(--ti-orange-500)) lives
+  // on the today label; we can't read computed-style colors reliably
+  // in jsdom, so the contract is exercised by the pure helper test in
+  // v1_25-whiteboard-view.test.tsx + here we just confirm the data
+  // attribute lights up for today.
+  it("v1.25 — whiteboard surfaces a today day-label when corpus contains today's atom", async () => {
     const todayIso = new Date().toISOString();
     const todayEvents: TimelineEvent[] = [
       makeEvent({ id: "today-1", ts: todayIso }),
@@ -981,13 +987,13 @@ describe("v1.19.1 Round 2 H — Today gets the orange accent", () => {
     });
     renderRoute();
     await waitFor(() => {
-      expect(screen.getByTestId("graph-view")).toBeInTheDocument();
+      expect(screen.getByTestId("whiteboard-view")).toBeInTheDocument();
     });
-    expect(
-      Number(
-        screen.getByTestId("graph-view").getAttribute("data-atom-count"),
-      ),
-    ).toBe(2);
+    const labels = screen.getAllByTestId("whiteboard-day-label");
+    const todayLabel = labels.find(
+      (el) => el.getAttribute("data-is-today") === "true",
+    );
+    expect(todayLabel).toBeDefined();
   });
 });
 

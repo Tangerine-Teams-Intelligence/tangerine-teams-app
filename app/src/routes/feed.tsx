@@ -56,7 +56,13 @@ import { buildPeopleStats } from "@/routes/people/index";
 import { useReplayController } from "@/components/canvas/ReplayController";
 import { CatchupBanner } from "@/components/feed/CatchupBanner";
 import { CaptureInput } from "@/components/feed/CaptureInput";
-import { GraphView } from "@/components/feed/GraphView";
+// v1.25.0 — replace Obsidian force-directed graph (rejected by CEO as
+// "太差了" — looks like network engineering) with the Heptabase-style
+// whiteboard: physical-feeling cards on an infinite canvas, spatially
+// arranged by day × actor, connected by subtle bezier lines.
+// GraphView.tsx and DailyMemoryPages.tsx remain on disk for reference
+// but neither is mounted from /feed anymore.
+import { WhiteboardView } from "@/components/feed/WhiteboardView";
 
 export default function FeedRoute() {
   const canvasView = useStore((s) => s.ui.canvasView);
@@ -214,21 +220,24 @@ export default function FeedRoute() {
 }
 
 /**
- * v1.24.0 — TimeView (canvas key = "time", visually now the "graph" view).
+ * v1.25.0 — TimeView (canvas key = "time", visually now the "whiteboard" view).
  *
  * Mounts:
- *   • CatchupBanner pinned to the top — the v1.21 operability pillar
- *     stays unchanged. Lives outside the graph canvas so it doesn't fight
- *     the force simulation for screen real estate.
- *   • GraphView below — Obsidian-style force-directed nodes/edges,
- *     replacing v1.23's Depth Canvas (which itself replaced v1.22's Daily
- *     Memory Pages). DailyMemoryPages.tsx + TimeDensityList both stay on
- *     disk for reference but neither is mounted from /feed.
+ *   • CatchupBanner pinned to the top — operability pillar from v1.21
+ *     unchanged. Lives outside the whiteboard canvas so it doesn't get
+ *     panned/zoomed away when the user moves around.
+ *   • WhiteboardView below — Heptabase-style infinite canvas with
+ *     cards laid out by day (Y axis) × actor lane (X axis), connected
+ *     by subtle SVG bezier lines for shared mention / concept / thread.
+ *     Replaces v1.24's Obsidian force-directed graph (CEO: "太差了"),
+ *     which itself replaced v1.23 Depth Canvas / v1.22 Daily Memory
+ *     Pages. GraphView.tsx + DailyMemoryPages.tsx + TimeDensityList all
+ *     stay on disk for reference; none are mounted from /feed.
  *
  * The internal `canvasView === "time"` key is preserved so existing
- * keyboard shortcuts (T) + state in zustand keep working without a
- * migration. Only the user-visible label changes ("graph" in the footer
- * hint).
+ * keyboard shortcuts (T) + zustand state keep working without a
+ * migration. Only the user-visible label changes ("whiteboard" in the
+ * footer hint).
  */
 function TimeView({
   events,
@@ -249,11 +258,7 @@ function TimeView({
         <CatchupBanner events={events} user={user} onOpenAtom={onOpenAtom} />
       </div>
       <div className="relative min-h-0 flex-1">
-        <GraphView
-          events={events}
-          currentUser={user}
-          onOpenAtom={onOpenAtom}
-        />
+        <WhiteboardView events={events} onOpenAtom={onOpenAtom} />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tangerine-meeting-assistant"
-version = "1.24.0"
+version = "1.25.0"
 description = "Your meeting -> your team's AI context, automatically."
 readme = "README.md"
 requires-python = ">=3.11"

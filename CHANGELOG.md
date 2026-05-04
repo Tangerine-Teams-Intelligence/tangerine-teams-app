@@ -8,6 +8,86 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
      Each version block focuses on user-visible features so this doc can
      also feed the in-app /whats-new-app route. -->
 
+## [1.25.0] — 2026-05-04 — Heptabase-style whiteboard
+
+CEO rejected the v1.24 force-directed graph: *"太差了"*. The issue was visual association — Obsidian's graph view reads like programmer network topology, not like the way a person actually thinks about scattered notes. The reference shifted from Obsidian to Heptabase: a detective's evidence board, with physical-feeling cards floating on an infinite canvas, spatially organized rather than force-simulated.
+
+The T view (`canvasView === "time"`) now mounts `<WhiteboardView/>` instead of `<GraphView/>` (v1.24 Obsidian graph). `GraphView.tsx` and `DailyMemoryPages.tsx` remain on disk for reference; neither is mounted from `/feed`.
+
+### Library
+
+- `react-zoom-pan-pinch@^3.7.0` (~10 KB gzipped). Pure CSS-transform pan + zoom wrapper. No three.js, no WebGL, no force simulation. SVG bezier paths for connection lines.
+
+### Layout (algorithmic, NOT force-directed)
+
+- **Y axis = day** — newest day at the top, scroll down = back in time. A floating sticky day label sits to the left of each day's first card. "Today" gets the orange accent + serif display font; older days are sans muted-stone.
+- **X axis = actor lane** — each unique actor gets a vertical column 360px wide; the heaviest actor lands in lane 0 (leftmost). Within an actor lane, cards stack newest-first.
+- **Stagger** — cards within the same lane jitter ±6px horizontally so the column doesn't read as a rigid grid (the "physical pinned" feel).
+- **Hero card** — the highest-scored atom of each day renders 320px wide × `p-6` padding, others 290px × `p-4`. Hero gets +30px height bonus.
+
+### Card design (Heptabase visual DNA)
+
+- Uniform white (`bg-white` / `bg-stone-900` in dark) — NO source-tint. Cards read as Polaroids on a corkboard, not vendor-colored chips.
+- 1px stone-200 border, `rounded-md` (6px corners — paper-like, not pillowy).
+- **Two-layer shadow**: `0 2px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)` (close + far for depth realism).
+- Hover: `-translate-y-0.5` lift + shadow grows to `0 4px 12px / 0 12px 32px`.
+- Header row: `actor · source · time` with stone-300 separators and mono labels for source/time.
+- Body: 3-line clamp on regular cards (5-line on hero), `text-stone-700`, generous leading.
+- Concept tags: bottom row of mono `text-[10px] stone-400` `#tag` chips, max 4.
+
+### Connection lines
+
+Subtle 1px curved SVG bezier paths between cards that share:
+
+- **Mention** edge — solid 1px stone-300, hovered turns `var(--ti-orange-500)`.
+- **Concept** edge — dashed 1px stone-300.
+- **Thread** edge — solid 1.5px stone-300 (slightly heavier).
+
+Lines are decorative, not labeled, not interactive (`pointer-events: none`). Capped at 5 connections per card so the canvas doesn't hairball when 60 atoms share a tag.
+
+### Pan + zoom
+
+- **Wheel** = zoom (mouse-pointer-anchored, no shift required, smooth step 0.005).
+- **Click + drag empty space** = pan (panning excluded on `whiteboard-card-button` so card clicks don't get swallowed).
+- **Pinch trackpad** = zoom.
+- Default scale 1.0; range 0.3 (overview) to 3.0 (read body text up close).
+
+### Background
+
+Warm cream radial gradient (`#fcfaf3 → #f7f3e9`) — Heptabase's signature canvas color, NOT the stone-50 / stone-950 of the v1.24 graph view.
+
+### Single accent rule preserved
+
+Orange (`var(--ti-orange-500)`) only renders on:
+
+- The "Today" day label.
+- Hovered connection edges.
+- (Existing: TopNav T home gradient, Capture Save button.)
+
+NOT on cards. Cards stay uniform white.
+
+### Operability surfaces preserved
+
+- CatchupBanner — top of canvas, above the whiteboard.
+- CaptureInput — sticky bottom.
+- TopNav — 4 buttons unchanged.
+- Spotlight (Cmd+K) — unchanged.
+- AtomBottomSheet opens on card click (existing contract).
+- Footer hint label updated `T graph → T whiteboard`.
+- `back to time` affordance on H/P/R views unchanged.
+
+### Tests
+
+`tests/v1_25-whiteboard-view.test.tsx` — 20 specs covering buildLayout (cards, day grouping, actor lanes, hero detection, edge inference) + WhiteboardView render contract (one card per event, hover state, click-out, SVG edges, day labels, footer label).
+
+`tests/v1_19-single-canvas.test.tsx` — updated v1.24-era specs to assert `whiteboard-view` testid + `T whiteboard` footer label.
+
+Full suite: 779 passed, 0 failed, 15 skipped (pre-existing).
+
+### Honest scope
+
+Pure CSS + SVG. No new heavy deps. The v1.20.1 timeline.json fix and the v1.21.1 R6 honesty / exit-path audits all carry through unchanged. `GraphView.tsx` and `DailyMemoryPages.tsx` are orphaned on disk; we kept them rather than delete in case a future view wants to reach for the helpers.
+
 ## [1.24.0] — 2026-05-04 — Obsidian-style force-directed graph view
 
 CEO direction after rejecting 7 visual designs: *"用一个类似 obsidian 的图像，而不是简单的文本框"*. Stop trying to render the timeline as cards / pages / planes. Render it as a constellation of nodes + edges, force-directed, the visual everyone associates with Obsidian.
